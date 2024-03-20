@@ -1,0 +1,83 @@
+#Connection to the database
+from sqlalchemy.engine import URL
+from sqlalchemy import create_engine
+
+url_object = URL.create(
+    "postgresql+pg8000",
+    username='',
+    password='',
+    host='localhost',
+    database='airlines',
+)
+engine = create_engine(url_object)
+
+def read_sql_table(table_name):
+    df = pd.read_sql(sql = f"SELECT * FROM {table_name}", con = engine)
+    return df
+
+flight_df = pd.read_csv(
+  'E:/PythonScripts/Koncowego_sprawdzony/data/processed/flight_df_01.csv',
+  sep=',',
+  encoding='UTF-8',
+  decimal='.'
+)
+flight_df
+
+#Enrichment with aircraft
+aircraft_df_raw = read_sql_table('aircraft')
+#remove the number_of_seats, id and duplicate columns from the aircraft_df frame
+aircraft_df = aircraft_df_raw.drop(['id', 'number_of_seats'], axis = 1).drop_duplicates()
+
+aircraft_df_is_duplicated = aircraft_df.duplicated(subset='tail_num')
+aircraft_df_duplicated = aircraft_df.loc[aircraft_df_is_duplicated]
+aircraft_df_duplicated
+
+aircraft_df.drop_duplicates(subset = 'tail_num', keep = 'last', inplace = True)
+aircraft_df.reset_index(drop = True, inplace = True)
+aircraft_df
+
+#Combination of aircraft_df and flight_df
+tmp_flight_df = flight_df.merge(right = aircraft_df, how = 'left', on = 'tail_num')
+
+tmp_flight_df.duplicated().unique() # only False - no duplicates
+
+flight_df = tmp_flight_df.copy()
+
+#Delays vs. year of production of the aircraft part 1
+delays_by_manufacture_year_df = flight_df.groupby('manufacture_year', as_index = False).agg({'id': 'count', 'is_delayed': 'sum'})
+
+delays_by_manufacture_year_df
+
+delays_by_manufacture_year_df = delays_by_manufacture_year_df.loc[delays_by_manufacture_year_df['id'] > 10000]
+
+delays_by_manufacture_year_df.rename(columns = {'id': 'no_f'}, inplace = True)
+delays_by_manufacture_year_df
+
+#modify the chart to show only those age groups that have completed more than 10,000 flights
+plt.figure(figsize = (15,10))
+plt.bar(delays_by_manufacture_year_df['manufacture_year'], delays_by_manufacture_year_df['is_delayed'])
+plt.xticks(ticks = delays_by_manufacture_year_df['manufacture_year'], labels = delays_by_manufacture_year_df['manufacture_year'], rotation = 45)
+plt.ylabel('is_delayed', fontsize = 20)
+plt.xlabel('year', fontsize = 20)
+plt.grid()
+plt.show()
+
+#Delays vs. year of production of the aircraft part 2
+flight_df['manufacture_year_agg'] = pd.cut(x = flight_df['manufacture_year'], bins = range(1986,2020,3), right = True)
+
+flight_delays_by_manufacture_year_agg_df = flight_df[['manufacture_year_agg', 'is_delayed']]
+flight_delays_by_manufacture_year_agg_df = flight_delays_by_manufacture_year_agg_df.groupby('manufacture_year_agg', as_index = False)['is_delayed'].sum()
+
+plt.figure(figsize = (15,10))
+plt.bar(range(len(flight_delays_by_manufacture_year_agg_df)), flight_delays_by_manufacture_year_agg_df['is_delayed'])
+# plt.xticks(ticks = flight_delays_by_manufacture_year_agg_df['manufacture_year_agg'], labels = flight_delays_by_manufacture_year_agg_df['manufacture_year_agg'], rotation = 45)
+plt.ylabel('is_delayed', fontsize = 20)
+plt.xlabel('manufacture_year_agg', fontsize = 20)
+plt.grid()
+plt.show()
+
+#determine the TOP 5 production years - i.e. when sorting by the number of flights performed, remember to also display the delay value.
+flight_delays_by_manufacture_year_agg_df.sort_values('is_delayed', ascending = False).head(5)
+
+#saving
+flight_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/processed/flight_df_02.csv', index = False)

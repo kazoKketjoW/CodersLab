@@ -1,0 +1,83 @@
+#Connection to the database
+
+from sqlalchemy.engine import URL
+from sqlalchemy import create_engine
+
+url_object = URL.create(
+    "postgresql+pg8000",
+    username='',
+    password='',
+    host='localhost',
+    database='airlines',
+)
+engine = create_engine(url_object)
+
+def read_sql_table(table_name):
+    df = pd.read_sql(sql = f"SELECT * FROM {table_name}", con = engine)
+    return df
+
+flight_df = pd.read_csv(
+  'E:/PythonScripts/Koncowego_sprawdzony/data/processed/flight_df_02.csv',
+  sep=',',
+  encoding='UTF-8',
+  decimal='.'
+)
+flight_df
+
+#Enhancement with airport_list
+airport_list_df = read_sql_table('airport_list')
+
+airport_list_df.duplicated(subset = 'origin_airport_id').unique() #false - no duplicates
+
+flight_df = flight_df.merge(right = airport_list_df, how = 'left', on = 'origin_airport_id')
+
+flight_df = flight_df.merge(right = airport_list_df, how = 'left', left_on = 'dest_airport_id', right_on = 'origin_airport_id')
+
+flight_df.rename(columns = {'origin_city_name_x': 'origin_city_name','origin_city_name_y': 'destination_city_name'}, inplace = True)
+
+#Analysis by airports and routes
+top_airports_origin_df = flight_df.groupby('origin_city_name', as_index = False)['id'].count()
+top_airports_origin_df = top_airports_origin_df.sort_values('id', ascending = False)
+top_airports_origin_df
+
+top_airports_destination_df = flight_df.groupby('destination_city_name', as_index = False)['id'].count()
+top_airports_destination_df = top_airports_destination_df.sort_values('id', ascending = False)
+top_airports_destination_df
+
+#Enrichment with weather data
+airport_weather_df = read_sql_table('airport_weather')
+
+#deleting additional columns
+airport_weather_df = airport_weather_df.drop(['id', 'wt18', 'tavg', 'tmin', 'wdf2', 'wdf5', 'wsf2', 'wsf5', 'wt01', 'wt08',
+       'wt02', 'wt03', 'wt04', 'wt09', 'wt06', 'wt05', 'pgtm', 'wt10', 'wesd',
+       'sn32', 'sx32', 'psun', 'tsun', 'tobs', 'wt07', 'wt11'], axis = 1)
+airport_weather_df
+
+airport_weather_df = pd.merge(airport_weather_df,airport_list_df[['name', 'origin_airport_id']], how ='inner', on = 'name')
+
+#Combination of airport_weather_df and flight_df
+#changing format to datetime
+pd.to_datetime(airport_weather_df['date'], format = '%Y-%m-%d')
+
+flight_df['date'] = flight_df['year'].astype(str) +"-"+ flight_df["month"].astype(str)+"-"+ flight_df["day_of_month"].astype(str)
+pd.to_datetime(flight_df['date'], format = '%Y-%m-%d')
+
+flight_df = flight_df.merge(right = airport_weather_df, how = 'left', left_on = ['date', 'origin_airport_id_x'], right_on = ['date', 'origin_airport_id'])
+
+#Independent work
+tmp_flight_df = flight_df.dropna()
+tmp_flight_df = tmp_flight_df.groupby('tmax', as_index = False)['is_delayed'].sum()
+plt.figure(figsize = (20,15))
+plt.bar(tmp_flight_df['tmax'], tmp_flight_df['is_delayed'])
+plt.xticks(ticks = tmp_flight_df['tmax'], labels = tmp_flight_df['tmax'], rotation = 90)
+plt.ylabel('is_delayed', fontsize = 20)
+plt.xlabel('tmax', fontsize = 20)
+plt.grid()
+plt.show()
+
+#My comment:
+#As we can see in the graph above, an increase in the maximum temperature does not result in 
+#an increase in the number of delays. They are most likely due to something else. 
+#Statistically, the most delays occur at medium temperature. 
+#There are also large amounts of delays for low temperatures (over 400 delays for 29F) 
+#and for higher temperatures (over 450 delays for 73F).
