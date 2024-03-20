@@ -1,0 +1,45 @@
+#In the archive/ folder you will find folders 2018, 2019 and 2020, and in each of them folders named with three-letter abbreviations of the English months (jan, feb, etc.).
+#
+#In each of these folders you will find .csv files that contain information about how many new customers, regular customers and VIP customers visited the store that day.
+#
+#Write a script that will summarize how many new, regular and VIP customers visited the store in 2018, 2019 and 2020.
+#
+#Expected results:
+#
+#In 2018, the store was visited by:
+#  - 853 new customers
+#  - 2,842 returning customers
+#  - 315 VIP clients
+#In 2019, the store was visited by:
+#  - 851 new customers
+#  - 2,859 returning customers
+#  - 252 VIP clients
+#In 2020, the store was visited by:
+#  - 757 new customers
+#  - 2767 returning customers
+#  - 255 VIP clients
+
+
+
+
+import glob
+import csv
+def files_in_year(year):
+    return glob.glob(f'archive/{year}/**/*.csv', recursive=True)
+years = (2018, 2019, 2020)
+for year in years:
+    filenames = files_in_year(year)
+    new = 0
+    old = 0
+    vip = 0
+    for filename in filenames:
+        with open(filename, newline='') as my_file:
+            report = csv.reader(my_file)
+            data = list(report)
+            new = new + int(data[0][1])
+            old = old + int(data[1][1])
+            vip = vip + int(data[2][1])
+    print(f'W roku {year} sklep odwiedziło:')
+    print(f' - {new} nowych klientów')
+    print(f' - {old} powracających klientów')
+    print(f' - {vip} klientów VIP')

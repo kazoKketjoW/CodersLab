@@ -1,0 +1,32 @@
+#Write a function count_letters(text) that will take a string as an argument and return a dictionary in which the key will be the characters from the string and the values will be the number of their occurrences.
+#
+#Example:
+#
+#print(count_letters('Katarzyna'))
+#
+#Result:
+#
+#{'K': 1, 'a': 3, 't': 1, 'r': 1, 'z': z, 'y': 1, 'n': 1}
+
+
+def count_letters(text):
+    counters = {}
+    for letter in text:
+        if letter not in counters:
+            counters[letter] = 1
+        else:
+            counters[letter] += 1
+    return counters;
+
+
+if count_letters('Anna') == {'A': 1, 'n': 2, 'a': 1}:
+    print('Zaliczone!')
+else:
+    print("Oczekiwano, że dla argumentu 'Anna' funkcja zwróci {'A': 1, 'n': 2, 'a': 1} (kolejność liter nie jest istotna, tylko poprawne ich zliczenie)")
+    print('Twoja funkcja zwróciła:', count_letters('Anna'))
+
+if count_letters('Kajak') == {'K': 1, 'a': 2, 'j': 1, 'k': 1}:
+    print('Zaliczone!')
+else:
+    print("Oczekiwano, że dla argumentu 'Kajak' funkcja zwróci {'K': 1, 'a': 2, 'j': 1, 'k': 1} (kolejność liter nie jest istotna, tylko poprawne ich zliczenie)")
+    print('Twoja funkcja zwróciła:', count_letters('Kajak'))

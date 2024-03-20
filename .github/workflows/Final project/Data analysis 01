@@ -1,0 +1,180 @@
+#Connection to the database
+
+from sqlalchemy.engine import URL
+from sqlalchemy import create_engine
+
+url_object = URL.create(
+    "postgresql+pg8000",
+    username='',
+    password='',
+    host='localhost',
+    database='airlines',
+)
+engine = create_engine(url_object)
+
+def read_sql_table(table_name):
+    df = pd.read_sql(sql = f"SELECT * FROM {table_name}", con = engine)
+    return df
+
+#Loading data into the workspace
+flight_df_raw = read_sql_table('flight')
+
+#deleting flights from 2020 and cancelled
+flight_df = flight_df_raw.loc[
+    (flight_df_raw['year'] != 2020) & 
+    (flight_df_raw['cancelled'] != 1)
+]
+len(flight_df)
+
+#New index numbering - there were 'holes' after the records were thrown out
+flight_df.reset_index(drop = True, inplace = True)
+
+flight_df.rename(columns = {'dep_delay_new': 'dep_delay'}, inplace = True)
+
+#Analysis of the dep_delay column part 1
+dep_delay_statistics_df = round(flight_df['dep_delay'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]), 2)
+dep_delay_statistics_df
+dep_delay_statistics_df['95%']
+
+#Analysis of the dep_delay column part 2
+import matplotlib.pyplot as plt
+
+plt.figure(figsize = (15,10))
+plt.hist(flight_df['dep_delay'], bins = range(0,200,10))
+plt.xticks(ticks = range(0,200,10))
+plt.grid()
+plt.show()
+
+plt.figure(figsize = (15,10))
+plt.hist(flight_df['dep_delay'][
+    flight_df['dep_delay'] > 0]
+         , bins = range(0,200,10))
+plt.xticks(ticks = range(0,200,10))
+plt.grid()
+plt.show()
+
+plt.figure(figsize = (15,10))
+plt.hist(flight_df['dep_delay'][
+    (flight_df['dep_delay'] > 0) & 
+    (flight_df['dep_delay'] < dep_delay_statistics_df['95%'])
+], bins = range(0,200,10))
+plt.xticks(ticks = range(0,200,10))
+plt.grid()
+plt.show()
+
+#Delay analysis (Define a new column in the flight_df frame - is_delayed as those delays that were more than (>) 15 minutes.)
+flight_df['is_delayed'] = 0
+
+for i in range(len(flight_df)):
+    if flight_df['dep_delay'][i] > 15:
+        flight_df.at[i,'is_delayed'] = 1
+    else:
+        pass
+
+delayed_ratio = round(sum(flight_df['is_delayed']) / len(flight_df['is_delayed']),2)
+delayed_ratio # delayed_ratio = 0.19
+
+sum(flight_df['is_delayed'])
+
+#Delays vs. calendar month
+flight_df.columns
+
+flight_delays_by_month_df = flight_df.groupby(['month'], as_index = False)['is_delayed'].sum()
+flight_delays_by_month_df
+
+flight_delays_by_month_df['is_delayed'].sum()
+
+plt.figure(figsize = (15,10))
+plt.bar(flight_delays_by_month_df['month'], flight_delays_by_month_df['is_delayed'])
+plt.xticks(ticks = flight_delays_by_month_df['month'], labels = flight_delays_by_month_df['month'])
+plt.grid()
+plt.show()
+
+#Delays vs. day of the week part 1
+flight_delays_by_weekday_df = flight_df.groupby(['day_of_week'], as_index = False)['is_delayed'].sum()
+flight_delays_by_weekday_df
+
+flight_delays_by_weekday_df['is_delayed'][5] / 0.19 #delayed_ratio
+
+plt.figure(figsize = (15,10))
+plt.bar(flight_delays_by_weekday_df['day_of_week'], flight_delays_by_weekday_df['is_delayed'])
+plt.xticks(ticks = flight_delays_by_weekday_df['day_of_week'], labels = flight_delays_by_weekday_df['day_of_week'])
+plt.grid()
+plt.show()
+
+#Delays vs. day of the week part 2
+#new column is_weekend
+flight_df['is_weekend'] = 0
+for i in range(len(flight_df)):
+    if flight_df['day_of_week'][i] in (6,7):
+        flight_df.at[i,'is_weekend'] = 1
+    else:
+        pass
+
+flight_delays_by_weekend_df = flight_df.groupby(['is_weekend'], as_index = False)['is_delayed'].sum()
+flight_delays_by_weekend_df
+
+flight_delays_by_weekend_df['is_delayed'][1] = round(flight_delays_by_weekend_df['is_delayed'][1]/flight_df['is_weekend'].sum(),2)
+flight_delays_by_weekend_df['is_delayed'][0] = round(flight_delays_by_weekend_df['is_delayed'][0]/(flight_df['is_weekend'].count() - flight_df['is_weekend'].sum()),2)
+
+flight_delays_by_weekend_df #is_delayed for weekdays = 0.19, for weekends = 0.18
+
+plt.figure(figsize = (15,10))
+plt.bar(flight_delays_by_weekend_df['is_weekend'], flight_delays_by_weekend_df['is_delayed'])
+plt.xticks(ticks = flight_delays_by_weekend_df['is_weekend'], labels = flight_delays_by_weekend_df['is_weekend'])
+plt.grid()
+plt.show()
+
+#Delays vs. flight distance
+
+flight_distance_analysis_df = round(flight_df['distance'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]), 2)
+flight_distance_analysis_df
+
+sample = flight_df.sample(n = 10000)
+plt.figure(figsize = (15,10))
+plt.scatter(
+x = sample['distance'],
+y = sample['dep_delay'],
+)
+plt.grid()
+plt.show()
+
+flight_df = flight_df.loc[
+    flight_df['distance'] <= flight_distance_analysis_df['95%']
+]
+flight_df.reset_index(drop = True, inplace = True)
+
+flight_df['distance_agg'] = pd.cut(x = flight_df['distance'], bins = range(0,2600,100), right = True,).cat.codes # converting intervals into numbers
+
+flight_delays_by_distance_agg_df = flight_df.groupby(['distance_agg'], as_index = False)['is_delayed'].sum()
+flight_delays_by_distance_agg_df
+
+calosc = flight_delays_by_distance_agg_df['is_delayed'].sum()
+for i in range(len(flight_delays_by_distance_agg_df)):
+    flight_delays_by_distance_agg_df.at[i, 'is_delayed'] = flight_delays_by_distance_agg_df['is_delayed'][i] / calosc
+
+flight_delays_by_distance_agg_df # distance_agg * 100 - minimum value of the interval - To create a chart
+
+plt.figure(figsize = (15,10))
+plt.bar(x = flight_delays_by_distance_agg_df['distance_agg'], height = flight_delays_by_distance_agg_df['is_delayed'])
+plt.grid()
+plt.show()
+
+#Delays vs. distance group
+a = flight_df.groupby('distance_group')
+a[['distance']].agg(['min', 'max'])
+
+flight_delays_by_distance_group_df = flight_df.groupby('distance_group', as_index = False)['is_delayed'].sum()
+flight_delays_by_distance_group_df
+
+suma = flight_delays_by_distance_group_df['is_delayed'].sum()
+for i in range(len(flight_delays_by_distance_group_df)):
+    flight_delays_by_distance_group_df.at[i, 'is_delayed'] = flight_delays_by_distance_group_df['is_delayed'][i] / suma
+flight_delays_by_distance_group_df
+
+plt.figure(figsize = (15,10))
+plt.bar(x = flight_delays_by_distance_group_df['distance_group'], height = flight_delays_by_distance_group_df['is_delayed'])
+plt.grid()
+plt.show()
+
+flight_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/processed/flight_df_01.csv', index = False)

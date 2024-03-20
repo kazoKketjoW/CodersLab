@@ -1,0 +1,52 @@
+from sqlalchemy.engine import URL
+from sqlalchemy import create_engine
+
+#Connection to database
+url_object = URL.create(
+    "postgresql+pg8000",
+    username='',
+    password='',
+    host='localhost',
+    database='airlines',
+)
+engine = create_engine(url_object)
+
+from psycopg2 import connect
+import pandas as pd
+
+#Loading data frames into the workspace
+def load_raw_data(file_name):
+    df = pd.read_csv(
+      f'E:/PythonScripts/Koncowego_sprawdzony/data/raw/{file_name}',
+      sep=',',
+      encoding='UTF-8',
+      decimal='.'
+    )
+    lower_names = []
+    for i in df.columns:
+        lower_names.append(i.lower())
+    for a in range(len(lower_names)):
+        df = df.rename(columns ={df.columns[a]: lower_names[a]})
+    return df
+    
+#Loading individual files into frames
+aircraft_df = load_raw_data('aircraft.csv')
+airport_list_df = load_raw_data('airport_list.csv')
+airport_weather_df = load_raw_data('airport_weather.csv')
+flight_df = load_raw_data('flight.csv')
+
+#Data export to the database
+def export_table_to_db(df, table_name):
+    df.to_sql(
+        con = engine,
+        name = table_name,
+        index = True,
+        index_label = 'id',
+        if_exists = 'replace',
+        chunksize = 8400000)
+
+#Uploading data
+export_table_to_db(aircraft_df, 'aircraft')
+export_table_to_db(airport_weather_df, 'airport_weather')
+export_table_to_db(flight_df, 'flight')
+export_table_to_db(airport_list_df, 'airport_list')
