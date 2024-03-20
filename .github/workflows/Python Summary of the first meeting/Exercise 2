@@ -1,0 +1,33 @@
+#Write a function find_first_duplicate(text) that takes a string as an argument and returns the first letter that appears more than once. If the letters are not repeated, the function should return None.
+#
+#Example:
+#
+#print(find('Kalambury'))
+#
+#Result:
+#
+#a
+
+def find_first_duplicate(text):
+    for letter in text:
+        if text.count(letter) > 1:
+            return letter;
+
+
+if find_first_duplicate('procesor') == 'r':
+    print('Zaliczone!')
+else:
+    print("Oczekiwano, że dla argumentu 'procesor' funkcja zwróci 'r'")
+    print('Twoja funkcja zwróciła:', find_first_duplicate('procesor'))
+
+if find_first_duplicate('klawiatura') == 'a':
+    print('Zaliczone!')
+else:
+    print("Oczekiwano, że dla argumentu 'klawiatura' funkcja zwróci 'a'")
+    print('Twoja funkcja zwróciła:', find_first_duplicate('klawiatura'))
+
+if find_first_duplicate('mysz') == None:
+    print('Zaliczone!')
+else:
+    print("Oczekiwano, że dla argumentu 'mysz' funkcja zwróci None")
+    print('Twoja funkcja zwróciła:', find_first_duplicate('mysz'))

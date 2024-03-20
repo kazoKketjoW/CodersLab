@@ -1,0 +1,97 @@
+import requests
+import pandas as pd
+import time
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+API_key = 'WpzDMZeeCq6tbPdsTHUX8W9mecuUVwXAnmcorefr'
+
+
+# getting list of airports by their ID
+df = pd.read_csv(
+  'E:/PythonScripts/Koncowego_sprawdzony/data/airports.csv',
+  sep=';',
+  encoding='UTF-8',
+  decimal='.'
+)
+df 
+
+#getting the full information based on airport ID
+list_of_airports = []
+for i in range(len(df)):
+    response_airport = requests.get(f'https://api-datalab.coderslab.com/api/airport/{df["origin_airport_id"][i]}', headers = {'Authorization': API_key})
+    try:
+        if bool(response_airport.json()['ORIGIN_AIRPORT_ID']) == True:
+            list_of_airports.append(response_airport.json())
+    except: 'KeyError'
+    time.sleep(0.1)
+
+#saving data frame to csv
+airport_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/raw/airport_list.csv', index = False)
+
+
+#getting weather 
+dates = pd.date_range('2019-01','2020-03', freq='MS').strftime("%Y-%m").tolist() ## Zakres od podanej daty początkowej do podanej daty końcowej
+list_of_weathers = []
+
+for i in range(len(dates)):
+    response_weather = requests.get(f'https://api-datalab.coderslab.com/api/airportWeather?date={dates[i]}', headers = {'Authorization': API_key})
+    list_of_weathers.append(response_weather.json())
+    print(list_of_weathers[-1])
+    time.sleep(0.063) ## 1000/min requests / in nested list
+
+#Creating one list from many nested lists For each nested list, 
+#we take each element of it and add it to a new list, creating a single-dimensional list.
+final_list_of_weathers = []               
+for i in list_of_weathers:                
+    for k in i:                           
+        final_list_of_weathers.append(k)  
+final_list_of_weathers
+
+airport_weather_df = pd.DataFrame.from_records(final_list_of_weathers)
+airport_weather_df
+
+#saving to csv
+airport_weather_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/raw/airport_weather.csv', index = False)
+
+#getting aircraft
+
+response_aircraft = requests.get('https://api-datalab.coderslab.com/api/v2/aircraft', headers = {'Authorization': API_key})
+print(response_aircraft.json())
+
+aircraft_df = pd.DataFrame.from_records(response_aircraft.json())
+
+aircraft_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/raw/aircraft.csv', index = False)
+
+#getting flight
+airport_df = pd.read_csv(
+  'E:/PythonScripts/Koncowego_sprawdzony/data/raw/airport_list.csv',
+  sep=',',
+  encoding='UTF-8',
+  decimal='.'
+)
+airport_df
+
+#Range from the provided start date to the provided end date
+dates = pd.date_range('2019-01','2020-03', freq='MS').strftime("%Y-%m").tolist() 
+
+list_of_flights = []
+suma_lotnisk = 1
+for i in range(len(df)):
+    print(df["origin_airport_id"][i], suma_lotnisk+i)
+    for k in range(len(dates)):
+        response_flights = requests.get(f'https://api-datalab.coderslab.com/api/v2/flight?airportId={df["origin_airport_id"][i]}&date={dates[k]}', headers = {'Authorization': API_key})
+        if response_flights.status_code != 204:
+            list_of_flights.append(response_flights.json())
+        else: pass
+        time.sleep(0.1) 
+
+final_list_of_flights = []
+for i in list_of_flights:
+    for k in i:                           
+        final_list_of_flights.append(k)  
+len(final_list_of_flights)
+
+flight_df = pd.DataFrame.from_records(final_list_of_flights)
+
+flight_df.to_csv('E:/PythonScripts/Koncowego_sprawdzony/data/raw/flight.csv', index = False)

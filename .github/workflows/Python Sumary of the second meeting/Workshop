@@ -1,0 +1,104 @@
+
+#The aim of the workshop is to write a script that will analyze the songs of a given artist 
+#in terms of the weather in the places mentioned in their lyrics. 
+#Having only the name of the band, we need to get the lyrics of all their songs, 
+#then look for the names of places in them, 
+#and finally check what the weather is like there at the moment.
+
+
+
+import requests
+from time import sleep;
+
+def get_band(name):
+    print('Pobieram dane o zespole...')
+    band_details_response = requests.get(f'https://www.theaudiodb.com/api/v1/json/{THEAUDIODB_KEY}/search.php', {'s': name})
+    band_details = band_details_response.json()
+
+    sleep(2)  # requested by API documentation: https://www.theaudiodb.com/api_guide.php
+
+    if band_details['artists']:
+        return {'id': band_details['artists'][0]['idArtist'], 'name': band_details['artists'][0]['strArtist']}
+    else:
+        return None; #Getting artist ID to download his list of albums
+
+def get_album_ids(band_id):
+    print('Pobieram albumy...')
+    albums_response = requests.get(f'https://theaudiodb.com/api/v1/json/{THEAUDIODB_KEY}/album.php', {'i': band_id})
+    albums = albums_response.json()
+
+    sleep(2)  # requested by API documentation: https://www.theaudiodb.com/api_guide.php
+
+    return [album['idAlbum'] for album in albums['album']]; #Getting several albums ID
+
+def get_tracks(album_id):
+    print(f'Pobieram ścieżki z albumu {album_id}...')
+    tracks_response = requests.get(f'https://theaudiodb.com/api/v1/json/{THEAUDIODB_KEY}/track.php', {'m': album_id})
+    tracks = tracks_response.json()
+
+    sleep(2)  # requested by API documentation: https://www.theaudiodb.com/api_guide.php
+
+    return [track['strTrack'] for track in tracks['track']]; #getting songs from one album
+
+from urllib.parse import quote
+
+def get_lyrics(band, title):
+    try:
+        response = requests.get(f'https://api.lyrics.ovh/v1/{quote(band)}/{quote(title)}', timeout=15)
+        sleep(2)  # requested by API documentation: https://www.theaudiodb.com/api_guide.php
+
+        return response.json()['lyrics']
+    except Exception:
+        print(f'Brak tekstu dla {band} - {title}')
+        return None #getting lyrics from a certain song
+
+def get_places(text):
+    response = requests.post('https://geocode.xyz', {'scantext': text, 'geoit': 'json', 'sentiment': 'analysis', 'auth': GEOCODEXYZ_KEY})
+    if response.status_code == 200:
+        content = response.json()
+        if 'match' not in content:
+            print('Brak lokalizacji w tekście')
+            return []
+        if type(content['match']) == list:
+            return [match['location'] for match in content['match']]
+        else:
+            return [content['match']['location']]
+    else:
+        print('Zapytanie do geocode.xyz wróciło ze statusem', response.status_code)
+        return [] #getting locations
+
+def get_weather(location):
+    response = requests.get(f'http://api.openweathermap.org/data/2.5/weather', {'q': location, 'appid': OPENWEATHERMAPORG_KEY})
+    if response.ok:
+        return response.json()['weather'][0]['description']
+    else:
+        print('Nie znaleziono pogody dla:', location)
+        return None        # getting weather
+
+name = input('Podaj nazwę zespołu')
+
+band = get_band(name)
+if band:
+    print('Znaleziono:', band['name'])
+    
+    album_ids = get_album_ids(band['id'])
+    
+    all_tracks = []
+    for aid in album_ids:
+        album_tracks = get_tracks(aid)
+        all_tracks.extend(album_tracks)
+    
+    for track_name in all_tracks:
+        lyrics = get_lyrics(band['name'], track_name)
+        if not lyrics:
+            continue
+
+        places = get_places(lyrics)
+        
+        for place in places:
+            weather = get_weather(place)
+            if weather:
+                print(f'Pogoda dla {place}: {weather} ({track_name} - {band["name"]})')
+                
+else:
+    print('Nie znaleziono:', name)
